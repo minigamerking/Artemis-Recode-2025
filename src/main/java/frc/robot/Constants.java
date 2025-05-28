@@ -24,8 +24,8 @@ public final class Constants
 
     public static class RobotConstants
     {
-        public static final double chassisLength = Units.inchesToMeters(30);
-        public static final double chassisWidth = Units.inchesToMeters(30);
+        public static final double chassisLength = Units.inchesToMeters(20);
+        public static final double chassisWidth = Units.inchesToMeters(21.25);
         public static final double kMetersPerSec = Units.feetToMeters(20);
         public static final double kRadiansPerSec = Units.rotationsToRadians(2);
     }

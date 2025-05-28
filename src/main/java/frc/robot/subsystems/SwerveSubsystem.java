@@ -18,10 +18,10 @@ public class SwerveSubsystem extends SubsystemBase {
         System.out.println("Swerve Subsystem initialized");
     }
 
-    private final SwerveModule fl_module = new SwerveModule(0,1,8, new Translation2d(chassisLength/2,chassisWidth/2));
-    private final SwerveModule fr_module = new SwerveModule(2,3,9, new Translation2d(chassisLength/2,-chassisWidth/2));
-    private final SwerveModule bl_module = new SwerveModule(4,5,10, new Translation2d(-chassisLength/2,chassisWidth/2));
-    private final SwerveModule br_module = new SwerveModule(6,7,11, new Translation2d(-chassisLength/2,-chassisWidth/2));
+    private final SwerveModule fl_module = new SwerveModule(1,2,9, new Translation2d(chassisLength/2,chassisWidth/2));
+    private final SwerveModule fr_module = new SwerveModule(3,4,10, new Translation2d(chassisLength/2,-chassisWidth/2));
+    private final SwerveModule bl_module = new SwerveModule(5,6,11, new Translation2d(-chassisLength/2,chassisWidth/2));
+    private final SwerveModule br_module = new SwerveModule(7,8,12, new Translation2d(-chassisLength/2,-chassisWidth/2));
 
     private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(
         fl_module.getPosition(),
@@ -35,10 +35,10 @@ public class SwerveSubsystem extends SubsystemBase {
 
         SwerveDriveKinematics.desaturateWheelSpeeds(newStates, 5);
 
-        fl_module.setDesiredState(newStates[0]);
-        fr_module.setDesiredState(newStates[1]);
-        bl_module.setDesiredState(newStates[2]);
-        br_module.setDesiredState(newStates[3]);
+        fl_module.setState(newStates[0]);
+        fr_module.setState(newStates[1]);
+        bl_module.setState(newStates[2]);
+        br_module.setState(newStates[3]);
     }
 
     StructArrayPublisher<SwerveModuleState> publisher = NetworkTableInstance.getDefault()
@@ -62,10 +62,10 @@ public class SwerveSubsystem extends SubsystemBase {
         setChassisSpeeds(desiredSpeeds);
 
         SwerveModuleState[] loggingState = new SwerveModuleState[] {
-            fl_module.getState(),
-            fr_module.getState(),
-            bl_module.getState(),
-            br_module.getState()
+            fl_module.getCurrentState(),
+            fr_module.getCurrentState(),
+            bl_module.getCurrentState(),
+            br_module.getCurrentState()
         };
         publisher.set(loggingState);
     }

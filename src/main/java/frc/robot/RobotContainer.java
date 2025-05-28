@@ -31,7 +31,7 @@ public class RobotContainer
     private final CommandXboxController driverController =
             new CommandXboxController(OperatorConstants.DRIVER_CONTROLLER_PORT);
 
-    private final AHRS gyro = new AHRS(NavXComType.kI2C);
+    private final AHRS gyro = new AHRS(NavXComType.kMXP_SPI);
     
     private final SwerveSubsystem swerve = new SwerveSubsystem(driverController);
     

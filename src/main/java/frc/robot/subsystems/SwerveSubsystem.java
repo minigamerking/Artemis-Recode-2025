@@ -10,6 +10,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import static frc.robot.Constants.RobotConstants.*;
 
+import com.ctre.phoenix6.sim.CANcoderSimState;
 import com.studica.frc.AHRS;
 
 
@@ -43,11 +44,6 @@ public class SwerveSubsystem extends SubsystemBase {
 
     StructArrayPublisher<SwerveModuleState> publisher = NetworkTableInstance.getDefault()
 .getStructArrayTopic("Swerve Module States", SwerveModuleState.struct).publish();
-
-    @Override
-    public void periodic() {
-        
-    }
 
     public void drive(double xSpeed, double ySpeed, double rot, AHRS gyro) {
         ChassisSpeeds desiredSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(

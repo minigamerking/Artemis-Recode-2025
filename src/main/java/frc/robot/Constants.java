@@ -28,5 +28,6 @@ public final class Constants
         public static final double chassisWidth = Units.inchesToMeters(21.25);
         public static final double kMetersPerSec = Units.feetToMeters(20);
         public static final double kRadiansPerSec = Units.rotationsToRadians(2);
+        public static final double wheelDiameter = Units.inchesToMeters(3);
     }
 }

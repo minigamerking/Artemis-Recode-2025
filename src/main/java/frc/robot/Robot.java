@@ -20,6 +20,7 @@ public class Robot extends TimedRobot
 {
     private Command autonomousCommand;
     
+    @SuppressWarnings("unused")
     private final RobotContainer robotContainer;
     
     

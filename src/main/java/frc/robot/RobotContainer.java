@@ -9,9 +9,6 @@ import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.SwerveDriveCommand;
 import frc.robot.subsystems.SwerveSubsystem;
 
-import com.studica.frc.AHRS;
-import com.studica.frc.AHRS.NavXComType;
-
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
@@ -30,8 +27,6 @@ public class RobotContainer
     // Replace with CommandPS4Controller or CommandJoystick if needed
     private final CommandXboxController driverController =
             new CommandXboxController(OperatorConstants.DRIVER_CONTROLLER_PORT);
-
-    private final AHRS gyro = new AHRS(NavXComType.kMXP_SPI);
     
     private final SwerveSubsystem swerve = new SwerveSubsystem(driverController);
     
@@ -42,8 +37,7 @@ public class RobotContainer
             swerve,
             () -> -driverController.getLeftY(),
             () -> -driverController.getLeftX(),
-            () -> -driverController.getRightX(),
-            gyro
+            () -> -driverController.getRightTriggerAxis()
         ));
         // Configure the trigger bindings
         configureBindings();

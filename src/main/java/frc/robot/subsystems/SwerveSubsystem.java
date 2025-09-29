@@ -1,6 +1,6 @@
 package frc.robot.subsystems;
 
-import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
@@ -8,61 +8,111 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructArrayPublisher;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import frc.robot.Constants.DriveConstants;
+
 import static frc.robot.Constants.RobotConstants.*;
 
-import com.ctre.phoenix6.sim.CANcoderSimState;
 import com.studica.frc.AHRS;
+import com.studica.frc.AHRS.NavXComType;
 
 
 public class SwerveSubsystem extends SubsystemBase {
     public SwerveSubsystem(CommandXboxController controller) {
         System.out.println("Swerve Subsystem initialized");
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+                resetHeading();
+            } catch (Exception e) {
+            }
+        }).start();
     }
 
-    private final SwerveModule fl_module = new SwerveModule(1,2,9, new Translation2d(chassisLength/2,chassisWidth/2));
-    private final SwerveModule fr_module = new SwerveModule(3,4,10, new Translation2d(chassisLength/2,-chassisWidth/2));
-    private final SwerveModule bl_module = new SwerveModule(5,6,11, new Translation2d(-chassisLength/2,chassisWidth/2));
-    private final SwerveModule br_module = new SwerveModule(7,8,12, new Translation2d(-chassisLength/2,-chassisWidth/2));
+    private final SwerveModule fl_module = new SwerveModule(
+        DriveConstants.kFrontLeftDriveMotorPort,
+        DriveConstants.kFrontLeftTurningMotorPort,
+        DriveConstants.kFrontLeftDriveEncoderReversed,
+        DriveConstants.kFrontLeftTurningEncoderReversed,
+        DriveConstants.kFrontLeftDriveAbsoluteEncoderPort,
+        DriveConstants.kFrontLeftDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kFrontLeftDriveAbsoluteEncoderReversed);
 
-    private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(
-        fl_module.getPosition(),
-        fr_module.getPosition(),
-        bl_module.getPosition(),
-        br_module.getPosition()
-    );
+    private final SwerveModule fr_module = new SwerveModule(
+        DriveConstants.kFrontRightDriveMotorPort,
+        DriveConstants.kFrontRightTurningMotorPort,
+        DriveConstants.kFrontRightDriveEncoderReversed,
+        DriveConstants.kFrontRightTurningEncoderReversed,
+        DriveConstants.kFrontRightDriveAbsoluteEncoderPort,
+        DriveConstants.kFrontRightDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kFrontRightDriveAbsoluteEncoderReversed);
 
-    public void setChassisSpeeds(ChassisSpeeds desiredSpeed) {
-        SwerveModuleState[] newStates = kinematics.toSwerveModuleStates(desiredSpeed);
+    private final SwerveModule bl_module = new SwerveModule(
+        DriveConstants.kBackLeftDriveMotorPort,
+        DriveConstants.kBackLeftTurningMotorPort,
+        DriveConstants.kBackLeftDriveEncoderReversed,
+        DriveConstants.kBackLeftTurningEncoderReversed,
+        DriveConstants.kBackLeftDriveAbsoluteEncoderPort,
+        DriveConstants.kBackLeftDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kBackLeftDriveAbsoluteEncoderReversed);
 
-        SwerveDriveKinematics.desaturateWheelSpeeds(newStates, 5);
+    private final SwerveModule br_module = new SwerveModule(
+        DriveConstants.kBackRightDriveMotorPort,
+        DriveConstants.kBackRightTurningMotorPort,
+        DriveConstants.kBackRightDriveEncoderReversed,
+        DriveConstants.kBackRightTurningEncoderReversed,
+        DriveConstants.kBackRightDriveAbsoluteEncoderPort,
+        DriveConstants.kBackRightDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kBackRightDriveAbsoluteEncoderReversed);;
 
-        fl_module.setState(newStates[0]);
-        fr_module.setState(newStates[1]);
-        bl_module.setState(newStates[2]);
-        br_module.setState(newStates[3]);
+    private final AHRS gyro = new AHRS(NavXComType.kMXP_SPI);
+
+    public SwerveModuleState[] setChassisSpeeds(ChassisSpeeds desiredSpeed) {
+        SwerveModuleState[] newStates = DriveConstants.kDriveKinematics.toSwerveModuleStates(desiredSpeed);
+
+        SwerveDriveKinematics.desaturateWheelSpeeds(newStates, DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
+
+        fl_module.setDesiredState(newStates[0]);
+        fr_module.setDesiredState(newStates[1]);
+        bl_module.setDesiredState(newStates[2]);
+        br_module.setDesiredState(newStates[3]);
+
+        return newStates;
     }
 
     StructArrayPublisher<SwerveModuleState> publisher = NetworkTableInstance.getDefault()
 .getStructArrayTopic("Swerve Module States", SwerveModuleState.struct).publish();
 
-    public void drive(double xSpeed, double ySpeed, double rot, AHRS gyro) {
+    public void drive(double xSpeed, double ySpeed, double rot) {
         ChassisSpeeds desiredSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(
-            xSpeed * kMetersPerSec,
-            ySpeed * kMetersPerSec,
-            rot * kRadiansPerSec,
-            gyro.getRotation2d()
+            xSpeed,
+            ySpeed,
+            rot,
+            getRotation2d()
         );
 
+        
 
+        SwerveModuleState[] loggingStates = setChassisSpeeds(desiredSpeeds);
+        
+        publisher.set(loggingStates);
+    }
 
-        setChassisSpeeds(desiredSpeeds);
+    public double getHeading() {
+        return Math.IEEEremainder(gyro.getYaw(), chassisLength);
+    }
 
-        SwerveModuleState[] loggingState = new SwerveModuleState[] {
-            fl_module.getCurrentState(),
-            fr_module.getCurrentState(),
-            bl_module.getCurrentState(),
-            br_module.getCurrentState()
-        };
-        publisher.set(loggingState);
+    public Rotation2d getRotation2d() {
+        return Rotation2d.fromDegrees(getHeading());
+    }
+
+    public void stopModules() {
+        fl_module.stop();
+        fr_module.stop();
+        bl_module.stop();
+        br_module.stop();
+    }
+
+    public void resetHeading() {
+        gyro.reset();
     }
 }

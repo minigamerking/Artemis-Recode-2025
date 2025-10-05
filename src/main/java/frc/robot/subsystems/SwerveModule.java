@@ -10,7 +10,6 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.ModuleConstants;
 
@@ -27,6 +26,8 @@ public class SwerveModule {
     private final CANcoder absoluteEncoder;
     private final boolean absoluteEncoderReversed;
     private final double absoluteEncoderOffsetRad;
+
+    private SwerveModuleState state;
 
     public SwerveModule(int driveMotorId, int turningMotorId, boolean driveMotorReversed, boolean turningMotorReversed,
             int absoluteEncoderId, double absoluteEncoderOffset, boolean absoluteEncoderReversed) {
@@ -46,6 +47,8 @@ public class SwerveModule {
 
         turningPidController = new PIDController(ModuleConstants.kPTurning, 0, 0);
         turningPidController.enableContinuousInput(-Math.PI, Math.PI);
+
+        state = new SwerveModuleState(0, Rotation2d.fromDegrees(0));
 
         resetEncoders();
     }
@@ -68,8 +71,8 @@ public class SwerveModule {
 
     public double getAbsoluteEncoderRad() {
         double angle = absoluteEncoder.getAbsolutePosition().getValueAsDouble();
-        angle *= 2.0 * Math.PI;
-        angle -= absoluteEncoderOffsetRad;
+        angle *= Math.PI;
+        angle += absoluteEncoderOffsetRad;
         return angle * (absoluteEncoderReversed ? -1.0 : 1.0);
     }
 
@@ -82,15 +85,19 @@ public class SwerveModule {
         return new SwerveModuleState(getDriveVelocity(), new Rotation2d(getTurningPosition()));
     }
 
+    public void periodic() {
+        driveMotor.set(this.state.speedMetersPerSecond / DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
+        turningMotor.set(turningPidController.calculate(getTurningPosition(), this.state.angle.getRotations()));
+    }
+
     public void setDesiredState(SwerveModuleState state) {
-        if (Math.abs(state.speedMetersPerSecond) < 0.001) {
-            stop();
-            return;
-        }
+        // if (Math.abs(state.speedMetersPerSecond) < 0.001) {
+        //     stop();
+        //     return;
+        // }
         state.optimize(getState().angle);
-        driveMotor.set(state.speedMetersPerSecond / DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
-        turningMotor.set(turningPidController.calculate(getTurningPosition(), state.angle.getRadians()));
-        SmartDashboard.putString("Swerve[" + absoluteEncoder.getDeviceID() + "] state", state.toString());
+        this.state = state;
+
     }
 
     public void stop() {

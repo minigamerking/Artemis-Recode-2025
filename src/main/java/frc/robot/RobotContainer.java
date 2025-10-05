@@ -7,8 +7,8 @@ package frc.robot;
 
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.SwerveDriveCommand;
+import frc.robot.commands.TestDriveCommand;
 import frc.robot.subsystems.SwerveSubsystem;
-
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
@@ -29,18 +29,28 @@ public class RobotContainer
             new CommandXboxController(OperatorConstants.DRIVER_CONTROLLER_PORT);
     
     private final SwerveSubsystem swerve = new SwerveSubsystem(driverController);
+
+    // private final SwerveModule fl_module = new SwerveModule(
+    //     DriveConstants.kFrontLeftDriveMotorPort,
+    //     DriveConstants.kFrontLeftTurningMotorPort,
+    //     DriveConstants.kFrontLeftDriveEncoderReversed,
+    //     DriveConstants.kFrontLeftTurningEncoderReversed,
+    //     DriveConstants.kFrontLeftDriveAbsoluteEncoderPort,
+    //     DriveConstants.kFrontLeftDriveAbsoluteEncoderOffset,
+    //     DriveConstants.kFrontLeftDriveAbsoluteEncoderReversed);
     
     /** The container for the robot. Contains subsystems, OI devices, and commands. */
     public RobotContainer()
     {
-        swerve.setDefaultCommand(new SwerveDriveCommand(
+        swerve.setDefaultCommand(new TestDriveCommand(
             swerve,
             () -> -driverController.getLeftY(),
-            () -> -driverController.getLeftX(),
-            () -> -driverController.getRightTriggerAxis()
+            () -> -driverController.getLeftX()
         ));
         // Configure the trigger bindings
         configureBindings();
+
+        
     }
     
     

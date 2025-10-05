@@ -28,13 +28,13 @@ public class SwerveSubsystem extends SubsystemBase {
         }).start();
     }
 
-    private final SwerveModule fl_module = new SwerveModule(
+    public final SwerveModule fl_module = new SwerveModule(
         DriveConstants.kFrontLeftDriveMotorPort,
         DriveConstants.kFrontLeftTurningMotorPort,
         DriveConstants.kFrontLeftDriveEncoderReversed,
         DriveConstants.kFrontLeftTurningEncoderReversed,
         DriveConstants.kFrontLeftDriveAbsoluteEncoderPort,
-        DriveConstants.kFrontLeftDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kFrontLeftDriveAbsoluteEncoderOffset,
         DriveConstants.kFrontLeftDriveAbsoluteEncoderReversed);
 
     private final SwerveModule fr_module = new SwerveModule(
@@ -43,7 +43,7 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kFrontRightDriveEncoderReversed,
         DriveConstants.kFrontRightTurningEncoderReversed,
         DriveConstants.kFrontRightDriveAbsoluteEncoderPort,
-        DriveConstants.kFrontRightDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kFrontRightDriveAbsoluteEncoderOffset,
         DriveConstants.kFrontRightDriveAbsoluteEncoderReversed);
 
     private final SwerveModule bl_module = new SwerveModule(
@@ -52,7 +52,7 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kBackLeftDriveEncoderReversed,
         DriveConstants.kBackLeftTurningEncoderReversed,
         DriveConstants.kBackLeftDriveAbsoluteEncoderPort,
-        DriveConstants.kBackLeftDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kBackLeftDriveAbsoluteEncoderOffset,
         DriveConstants.kBackLeftDriveAbsoluteEncoderReversed);
 
     private final SwerveModule br_module = new SwerveModule(
@@ -61,7 +61,7 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kBackRightDriveEncoderReversed,
         DriveConstants.kBackRightTurningEncoderReversed,
         DriveConstants.kBackRightDriveAbsoluteEncoderPort,
-        DriveConstants.kBackRightDriveAbsoluteEncoderOffsetRad,
+        DriveConstants.kBackRightDriveAbsoluteEncoderOffset,
         DriveConstants.kBackRightDriveAbsoluteEncoderReversed);;
 
     private final AHRS gyro = new AHRS(NavXComType.kMXP_SPI);
@@ -72,9 +72,9 @@ public class SwerveSubsystem extends SubsystemBase {
         SwerveDriveKinematics.desaturateWheelSpeeds(newStates, DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
 
         fl_module.setDesiredState(newStates[0]);
-        fr_module.setDesiredState(newStates[1]);
-        bl_module.setDesiredState(newStates[2]);
-        br_module.setDesiredState(newStates[3]);
+        //fr_module.setDesiredState(newStates[1]);
+        //bl_module.setDesiredState(newStates[2]);
+        //br_module.setDesiredState(newStates[3]);
 
         return newStates;
     }
@@ -83,18 +83,24 @@ public class SwerveSubsystem extends SubsystemBase {
 .getStructArrayTopic("Swerve Module States", SwerveModuleState.struct).publish();
 
     public void drive(double xSpeed, double ySpeed, double rot) {
-        ChassisSpeeds desiredSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(
+        ChassisSpeeds desiredSpeeds = new ChassisSpeeds(
             xSpeed,
             ySpeed,
-            rot,
-            getRotation2d()
+            rot
         );
 
-        
+        setChassisSpeeds(desiredSpeeds);
 
-        SwerveModuleState[] loggingStates = setChassisSpeeds(desiredSpeeds);
+        //fl_module.setDesiredState(new SwerveModuleState(xSpeed, Rotation2d.fromDegrees(rot)));
+
+        SwerveModuleState[] loggingStates = {fr_module.getState(), fl_module.getState(), br_module.getState(), bl_module.getState()};
         
         publisher.set(loggingStates);
+    }
+
+    @Override
+    public void periodic() {
+        fl_module.periodic();
     }
 
     public double getHeading() {

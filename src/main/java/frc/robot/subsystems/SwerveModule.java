@@ -5,6 +5,7 @@ import com.revrobotics.RelativeEncoder;
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkBase.PersistMode;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.config.EncoderConfig;
 import com.revrobotics.spark.config.SparkMaxConfig;
 
 import edu.wpi.first.math.controller.PIDController;
@@ -39,8 +40,9 @@ public class SwerveModule {
         driveMotor = new SparkMax(driveMotorId, MotorType.kBrushless);
         turningMotor = new SparkMax(turningMotorId, MotorType.kBrushless);
 
-        driveMotor.configure(new SparkMaxConfig().inverted(driveMotorReversed), null, PersistMode.kPersistParameters);
-        turningMotor.configure(new SparkMaxConfig().inverted(turningMotorReversed), null, PersistMode.kPersistParameters);
+        driveMotor.configure(getDriveConfig(driveMotorReversed), null, PersistMode.kPersistParameters);
+
+        turningMotor.configure(getTurningConfig(turningMotorReversed), null, PersistMode.kPersistParameters);
 
         driveEncoder = driveMotor.getEncoder();
         turningEncoder = turningMotor.getEncoder();
@@ -51,6 +53,32 @@ public class SwerveModule {
         state = new SwerveModuleState(0, Rotation2d.fromDegrees(0));
 
         resetEncoders();
+    }
+
+    private SparkMaxConfig getDriveConfig(boolean reversed) {
+        SparkMaxConfig config = new SparkMaxConfig();
+
+        config.inverted(reversed);
+
+        config.encoder
+            .positionConversionFactor(2.0 * Math.PI)
+            .velocityConversionFactor(2.0 * Math.PI);
+
+
+        return config;
+    }
+
+    private SparkMaxConfig getTurningConfig(boolean reversed) {
+        SparkMaxConfig config = new SparkMaxConfig();
+
+        config.inverted(reversed);
+
+        config.encoder
+            .positionConversionFactor(2.0 * Math.PI)
+            .velocityConversionFactor(2.0 * Math.PI);
+
+
+        return config;
     }
 
     public double getDrivePosition() {
@@ -71,7 +99,7 @@ public class SwerveModule {
 
     public double getAbsoluteEncoderRad() {
         double angle = absoluteEncoder.getAbsolutePosition().getValueAsDouble();
-        angle *= Math.PI;
+        angle *= 2.0 * Math.PI;
         angle += absoluteEncoderOffsetRad;
         return angle * (absoluteEncoderReversed ? -1.0 : 1.0);
     }
@@ -87,7 +115,7 @@ public class SwerveModule {
 
     public void periodic() {
         driveMotor.set(this.state.speedMetersPerSecond / DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
-        turningMotor.set(turningPidController.calculate(getTurningPosition(), this.state.angle.getRotations()));
+        turningMotor.set(turningPidController.calculate(getTurningPosition(), this.state.angle.getRadians()));
     }
 
     public void setDesiredState(SwerveModuleState state) {

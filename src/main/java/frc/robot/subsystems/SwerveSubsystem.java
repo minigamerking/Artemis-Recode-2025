@@ -6,8 +6,14 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructArrayPublisher;
+import edu.wpi.first.util.sendable.SendableBuilder;
+import edu.wpi.first.wpilibj.Preferences;
+import edu.wpi.first.wpilibj.RobotState;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import frc.robot.Robot;
 import frc.robot.Constants.DriveConstants;
 
 import static frc.robot.Constants.RobotConstants.*;
@@ -35,80 +41,133 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kFrontLeftTurningEncoderReversed,
         DriveConstants.kFrontLeftDriveAbsoluteEncoderPort,
         DriveConstants.kFrontLeftDriveAbsoluteEncoderOffset,
-        DriveConstants.kFrontLeftDriveAbsoluteEncoderReversed);
+        DriveConstants.kFrontLeftDriveAbsoluteEncoderReversed,
+        0);
 
-    private final SwerveModule fr_module = new SwerveModule(
+    public final SwerveModule fr_module = new SwerveModule(
         DriveConstants.kFrontRightDriveMotorPort,
         DriveConstants.kFrontRightTurningMotorPort,
         DriveConstants.kFrontRightDriveEncoderReversed,
         DriveConstants.kFrontRightTurningEncoderReversed,
         DriveConstants.kFrontRightDriveAbsoluteEncoderPort,
         DriveConstants.kFrontRightDriveAbsoluteEncoderOffset,
-        DriveConstants.kFrontRightDriveAbsoluteEncoderReversed);
+        DriveConstants.kFrontRightDriveAbsoluteEncoderReversed,
+        1);
 
-    private final SwerveModule bl_module = new SwerveModule(
+    public final SwerveModule bl_module = new SwerveModule(
         DriveConstants.kBackLeftDriveMotorPort,
         DriveConstants.kBackLeftTurningMotorPort,
         DriveConstants.kBackLeftDriveEncoderReversed,
         DriveConstants.kBackLeftTurningEncoderReversed,
         DriveConstants.kBackLeftDriveAbsoluteEncoderPort,
         DriveConstants.kBackLeftDriveAbsoluteEncoderOffset,
-        DriveConstants.kBackLeftDriveAbsoluteEncoderReversed);
+        DriveConstants.kBackLeftDriveAbsoluteEncoderReversed,
+        2);
 
-    private final SwerveModule br_module = new SwerveModule(
+    public final SwerveModule br_module = new SwerveModule(
         DriveConstants.kBackRightDriveMotorPort,
         DriveConstants.kBackRightTurningMotorPort,
         DriveConstants.kBackRightDriveEncoderReversed,
         DriveConstants.kBackRightTurningEncoderReversed,
         DriveConstants.kBackRightDriveAbsoluteEncoderPort,
         DriveConstants.kBackRightDriveAbsoluteEncoderOffset,
-        DriveConstants.kBackRightDriveAbsoluteEncoderReversed);;
+        DriveConstants.kBackRightDriveAbsoluteEncoderReversed,
+        3);
 
     private final AHRS gyro = new AHRS(NavXComType.kMXP_SPI);
 
-    public SwerveModuleState[] setChassisSpeeds(ChassisSpeeds desiredSpeed) {
+    private SwerveModuleState[] desiredStates = {};
+
+    public void setChassisSpeeds(ChassisSpeeds desiredSpeed) {
         SwerveModuleState[] newStates = DriveConstants.kDriveKinematics.toSwerveModuleStates(desiredSpeed);
 
         SwerveDriveKinematics.desaturateWheelSpeeds(newStates, DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
 
         fl_module.setDesiredState(newStates[0]);
-        //fr_module.setDesiredState(newStates[1]);
-        //bl_module.setDesiredState(newStates[2]);
-        //br_module.setDesiredState(newStates[3]);
+        fr_module.setDesiredState(newStates[1]);
+        bl_module.setDesiredState(newStates[2]);
+        br_module.setDesiredState(newStates[3]);
 
-        return newStates;
+        this.desiredStates = newStates;
     }
 
     StructArrayPublisher<SwerveModuleState> publisher = NetworkTableInstance.getDefault()
 .getStructArrayTopic("Swerve Module States", SwerveModuleState.struct).publish();
 
     public void drive(double xSpeed, double ySpeed, double rot) {
-        ChassisSpeeds desiredSpeeds = new ChassisSpeeds(
+        ChassisSpeeds desiredSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(
             xSpeed,
             ySpeed,
-            rot
+            rot,
+            getRotation2d()
         );
 
         setChassisSpeeds(desiredSpeeds);
-
-        //fl_module.setDesiredState(new SwerveModuleState(xSpeed, Rotation2d.fromDegrees(rot)));
-
-        SwerveModuleState[] loggingStates = {fr_module.getState(), fl_module.getState(), br_module.getState(), bl_module.getState()};
-        
-        publisher.set(loggingStates);
     }
 
     @Override
     public void periodic() {
         fl_module.periodic();
-    }
+        fr_module.periodic();
+        bl_module.periodic();
+        br_module.periodic();
 
-    public double getHeading() {
-        return Math.IEEEremainder(gyro.getYaw(), chassisLength);
+        SwerveModuleState[] loggingStates = null;
+
+        if (Robot.isSimulation()) {
+            loggingStates = desiredStates;
+        } else {
+            loggingStates = new SwerveModuleState[]{fl_module.getState(), fr_module.getState(), bl_module.getState(), br_module.getState()};
+            // loggingStates = desiredStates;
+        }
+        
+        
+        publisher.set(loggingStates);
+    }
+    
+    @Override
+    public void initSendable(SendableBuilder builder) {
+        builder.addDoubleProperty(
+            "PID P", 
+            () -> fl_module.getController().getP(),
+            (double p) -> this.setP(p));
+        builder.addDoubleProperty(
+            "PID D", 
+            () -> fl_module.getController().getD(),
+            (double d) -> this.setD(d));
+        builder.addDoubleProperty("FL Module Setpoint", 
+            () -> fl_module.getController().getSetpoint(),
+            null);
+        builder.addDoubleProperty("FR Module Setpoint", 
+            () -> fr_module.getController().getSetpoint(),
+            null);
+        builder.addDoubleProperty("BL Module Setpoint", 
+            () -> bl_module.getController().getSetpoint(),
+            null);
+        builder.addDoubleProperty("BR Module Setpoint", 
+            () -> br_module.getController().getSetpoint(),
+            null);
+        builder.addDoubleProperty("FL Module Heading",
+            () -> fl_module.getAbsoluteEncoderDeg(),
+             null);
     }
 
     public Rotation2d getRotation2d() {
-        return Rotation2d.fromDegrees(getHeading());
+        return Rotation2d.fromDegrees(-gyro.getRotation2d().getDegrees());
+    }
+
+    public void setP(double p) {
+        fl_module.setControllerP(p);
+        fr_module.setControllerP(p);
+        bl_module.setControllerP(p);
+        br_module.setControllerP(p);
+    }
+
+    public void setD(double d) {
+        fl_module.setControllerD(d);
+        fr_module.setControllerD(d);
+        bl_module.setControllerD(d);
+        br_module.setControllerD(d);
     }
 
     public void stopModules() {
@@ -120,5 +179,23 @@ public class SwerveSubsystem extends SubsystemBase {
 
     public void resetHeading() {
         gyro.reset();
+    }
+
+    public Command resetSwerveHeadings() {
+        return Commands.runOnce(() -> {
+            fl_module.resetEncoders();
+            fr_module.resetEncoders();
+            bl_module.resetEncoders();
+            br_module.resetEncoders();
+        }).ignoringDisable(true);
+    }
+
+    public Command getAbsoluteEncoder() {
+        return Commands.runOnce(() -> {
+            fl_module.getAbsoluteEncoderDeg();
+            fr_module.getAbsoluteEncoderDeg();
+            bl_module.getAbsoluteEncoderDeg();
+            br_module.getAbsoluteEncoderDeg();
+        }).ignoringDisable(true);
     }
 }

@@ -1,5 +1,7 @@
 package frc.robot.subsystems;
 
+import com.ctre.phoenix6.configs.CANcoderConfiguration;
+import com.ctre.phoenix6.configs.CANcoderConfigurator;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.spark.SparkMax;
@@ -10,8 +12,11 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.wpilibj.Preferences;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.ModuleConstants;
+import frc.robot.util.FunctionUtilities;
 
 public class SwerveModule {
 
@@ -29,28 +34,59 @@ public class SwerveModule {
 
     private SwerveModuleState state;
 
+    private final int swerveID;
+
     public SwerveModule(int driveMotorId, int turningMotorId, boolean driveMotorReversed, boolean turningMotorReversed,
-            int absoluteEncoderId, double absoluteEncoderOffset, boolean absoluteEncoderReversed) {
+            int absoluteEncoderId, double absoluteEncoderOffset, boolean absoluteEncoderReversed, int swerveID) {
 
         this.absoluteEncoderOffsetRad = absoluteEncoderOffset;
         this.absoluteEncoderReversed = absoluteEncoderReversed;
         absoluteEncoder = new CANcoder(absoluteEncoderId);
 
+        CANcoderConfiguration config = new CANcoderConfiguration();
+        config.MagnetSensor.MagnetOffset = Rotation2d.fromDegrees(Preferences.getDouble("Module_" + swerveID + "_Angle", 0)).getRotations();
+        absoluteEncoder.getConfigurator().apply(config);
+
         driveMotor = new SparkMax(driveMotorId, MotorType.kBrushless);
         turningMotor = new SparkMax(turningMotorId, MotorType.kBrushless);
 
-        driveMotor.configure(new SparkMaxConfig().inverted(driveMotorReversed), null, PersistMode.kPersistParameters);
-        turningMotor.configure(new SparkMaxConfig().inverted(turningMotorReversed), null, PersistMode.kPersistParameters);
+        driveMotor.configure(getDriveConfig(driveMotorReversed), null, PersistMode.kPersistParameters);
+        turningMotor.configure(getTurningConfig(turningMotorReversed), null, PersistMode.kPersistParameters);
 
         driveEncoder = driveMotor.getEncoder();
         turningEncoder = turningMotor.getEncoder();
 
-        turningPidController = new PIDController(ModuleConstants.kPTurning, 0, 0);
-        turningPidController.enableContinuousInput(-Math.PI, Math.PI);
+        turningPidController = new PIDController(Preferences.getDouble("Module_" + swerveID + "_P", ModuleConstants.kPTurning), 0, Preferences.getDouble("Module_" + swerveID + "_D", ModuleConstants.kDTurning));
+        turningPidController.enableContinuousInput(-180, 180);
+        turningPidController.setTolerance(0.2);
 
-        state = new SwerveModuleState(0, Rotation2d.fromDegrees(0));
+        //this.state = new SwerveModuleState(0, Rotation2d.fromDegrees(getAbsoluteEncoderDeg()));
 
-        resetEncoders();
+        this.setDesiredState(new SwerveModuleState(0, Rotation2d.fromDegrees(getAbsoluteEncoderDeg())));
+
+        this.swerveID = swerveID;
+    }
+
+    private SparkMaxConfig getDriveConfig(boolean reversed) {
+        SparkMaxConfig config = new SparkMaxConfig();
+
+        config.encoder
+            .velocityConversionFactor(ModuleConstants.kDriveEncoderRPM2MeterPerSec);
+
+        config.inverted(reversed);
+
+        return config;
+    }
+
+    private SparkMaxConfig getTurningConfig(boolean reversed) {
+        SparkMaxConfig config = new SparkMaxConfig();
+
+        config.encoder
+            .positionConversionFactor(360);
+
+        config.inverted(reversed);
+
+        return config;
     }
 
     public double getDrivePosition() {
@@ -58,7 +94,7 @@ public class SwerveModule {
     }
 
     public double getTurningPosition() {
-        return turningEncoder.getPosition();
+        return turningEncoder.getPosition() * ModuleConstants.kTurningMotorGearRatio;
     }
 
     public double getDriveVelocity() {
@@ -69,39 +105,65 @@ public class SwerveModule {
         return turningEncoder.getVelocity();
     }
 
-    public double getAbsoluteEncoderRad() {
-        double angle = absoluteEncoder.getAbsolutePosition().getValueAsDouble();
-        angle *= Math.PI;
-        angle += absoluteEncoderOffsetRad;
-        return angle * (absoluteEncoderReversed ? -1.0 : 1.0);
+    public double getAbsoluteEncoderDeg() {
+        double angle = Rotation2d.fromRotations(absoluteEncoder.getAbsolutePosition().getValueAsDouble()).getDegrees();
+        if (absoluteEncoderReversed) angle *= -1.0;
+        // angle -= Preferences.getDouble("Module_" + swerveID + "_Angle", 0);
+    
+        return FunctionUtilities.normalizeToRange(angle, -180, 180);
     }
 
     public void resetEncoders() {
+        // System.out.println("1 " + this.swerveID + " " + getAbsoluteEncoderDeg() + "\n");
         driveEncoder.setPosition(0);
-        turningEncoder.setPosition(getAbsoluteEncoderRad());
+        double offset = Rotation2d.fromDegrees(Preferences.getDouble("Module_" + swerveID + "_Angle", 0)).plus(Rotation2d.fromDegrees(getAbsoluteEncoderDeg())).getRotations();
+        Preferences.setDouble("Module_" + swerveID + "_Angle", Rotation2d.fromRotations(offset).getDegrees());
+        CANcoderConfiguration config = new CANcoderConfiguration();
+        config.MagnetSensor.MagnetOffset = offset;
+        absoluteEncoder.getConfigurator().apply(config);
+        // System.out.println("2" + this.swerveID + " " + getAbsoluteEncoderDeg() + "\n");
     }
 
     public SwerveModuleState getState() {
-        return new SwerveModuleState(getDriveVelocity(), new Rotation2d(getTurningPosition()));
+        return new SwerveModuleState(getDriveVelocity(), Rotation2d.fromDegrees(getAbsoluteEncoderDeg()));
     }
 
     public void periodic() {
+        //System.out.println(this.swerveID + " Desired Angle: " + this.state.angle.getDegrees());
         driveMotor.set(this.state.speedMetersPerSecond / DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
-        turningMotor.set(turningPidController.calculate(getTurningPosition(), this.state.angle.getRotations()));
+        turningMotor.set(turningPidController.calculate(getAbsoluteEncoderDeg()));
+        SmartDashboard.putNumber(this.swerveID + " Module Angle: ", getAbsoluteEncoderDeg());
     }
 
-    public void setDesiredState(SwerveModuleState state) {
-        // if (Math.abs(state.speedMetersPerSecond) < 0.001) {
-        //     stop();
-        //     return;
-        // }
-        state.optimize(getState().angle);
-        this.state = state;
-
+    public void setDesiredState(SwerveModuleState desiredState) {
+        if (Math.abs(desiredState.speedMetersPerSecond) < 0.001) {
+            desiredState.speedMetersPerSecond = 0;
+        }
+        desiredState.optimize(Rotation2d.fromDegrees(getAbsoluteEncoderDeg()));
+        this.state = desiredState;
+        turningPidController.setSetpoint(this.state.angle.getDegrees());
     }
 
     public void stop() {
         driveMotor.set(0);
         turningMotor.set(0);
+    }
+
+    public int getSwerveID() {
+        return this.swerveID;
+    }
+
+    public PIDController getController() {
+        return this.turningPidController;
+    }
+
+    public void setControllerP(double p) {
+        Preferences.setDouble("Module_" + swerveID + "_P", p);
+        this.turningPidController.setP(p);
+    }
+
+    public void setControllerD(double d) {
+        Preferences.setDouble("Module_" + swerveID + "_D", d);
+        this.turningPidController.setD(d);
     }
 }

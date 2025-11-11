@@ -3,14 +3,12 @@ package frc.robot.commands;
 import java.util.Set;
 import java.util.function.DoubleSupplier;
 
-import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.OperatorConstants;
-import frc.robot.subsystems.SwerveModule;
 import frc.robot.subsystems.SwerveSubsystem;
 
 public class TestDriveCommand extends Command {
@@ -37,12 +35,12 @@ public class TestDriveCommand extends Command {
         y = Math.abs(y) > OperatorConstants.kDeadband ? y : 0.0;
 
         double hypotenuse = Math.sqrt(Math.pow(x,2) + Math.pow(y, 2));
-        double angle = hypotenuse == 0 ? 0 : Math.asin(y/hypotenuse);
 
-        System.out.println("Hypotenuse: " + hypotenuse);
-        System.out.println("Angle: " + angle);
+        double angle = Math.atan2(y,x);
 
-        swerve.fl_module.setDesiredState(new SwerveModuleState(0, Rotation2d.fromRadians(angle)));
+        System.out.println("Swerve Angle: " + angle);
+
+        swerve.br_module.setDesiredState(new SwerveModuleState(hypotenuse * DriveConstants.kPhysicalMaxSpeedMetersPerSecond, Rotation2d.fromRadians(angle)));
     }
 
     @Override

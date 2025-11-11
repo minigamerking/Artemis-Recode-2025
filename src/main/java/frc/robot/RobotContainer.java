@@ -5,10 +5,13 @@
 
 package frc.robot;
 
+import frc.robot.Constants.ArmConstants;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.SwerveDriveCommand;
-import frc.robot.commands.TestDriveCommand;
+import frc.robot.subsystems.Arm;
 import frc.robot.subsystems.SwerveSubsystem;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
@@ -30,27 +33,28 @@ public class RobotContainer
     
     private final SwerveSubsystem swerve = new SwerveSubsystem(driverController);
 
-    // private final SwerveModule fl_module = new SwerveModule(
-    //     DriveConstants.kFrontLeftDriveMotorPort,
-    //     DriveConstants.kFrontLeftTurningMotorPort,
-    //     DriveConstants.kFrontLeftDriveEncoderReversed,
-    //     DriveConstants.kFrontLeftTurningEncoderReversed,
-    //     DriveConstants.kFrontLeftDriveAbsoluteEncoderPort,
-    //     DriveConstants.kFrontLeftDriveAbsoluteEncoderOffset,
-    //     DriveConstants.kFrontLeftDriveAbsoluteEncoderReversed);
+    private final Arm arm = new Arm(ArmConstants.kArmLeftMotorPort, ArmConstants.kArmRightMotorPort);
     
     /** The container for the robot. Contains subsystems, OI devices, and commands. */
     public RobotContainer()
     {
-        swerve.setDefaultCommand(new TestDriveCommand(
-            swerve,
-            () -> -driverController.getLeftY(),
-            () -> -driverController.getLeftX()
-        ));
+        // swerve.setDefaultCommand(new TestDriveCommand(
+        //     swerve,
+        //     () -> -driverController.getLeftY(),
+        //     () -> -driverController.getLeftX()
+        // ));
+
+        swerve.setDefaultCommand(new SwerveDriveCommand(swerve,
+                () -> -driverController.getLeftY(),
+                () -> driverController.getLeftX(),
+                () -> driverController.getRightX())
+        );
         // Configure the trigger bindings
         configureBindings();
 
-        
+        SmartDashboard.putData("Reset Swerve Headings", swerve.resetSwerveHeadings());
+        SmartDashboard.putData("Swerve PID", swerve);
+        SmartDashboard.putData("Arm", arm);
     }
     
     
@@ -65,6 +69,12 @@ public class RobotContainer
      */
     private void configureBindings()
     {
-        
+        driverController.start().onTrue(
+            Commands.runOnce(() -> swerve.resetHeading(), swerve)
+        );
+
+        driverController.a().onTrue(swerve.resetSwerveHeadings());
+
+        driverController.y().onTrue(arm.commands.calibrateArm());
     }
 }

@@ -9,6 +9,7 @@ import edu.wpi.first.wpilibj2.command.Subsystem;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.subsystems.SwerveSubsystem;
+import frc.robot.util.FunctionUtilities;
 
 public class SwerveDriveCommand extends Command {
     private final SwerveSubsystem swerve;
@@ -45,15 +46,16 @@ public class SwerveDriveCommand extends Command {
         // 3. Make the driving smoother
         x = xLimiter.calculate(x) * DriveConstants.kTeleDriveMaxSpeedMetersPerSecond;
         y = yLimiter.calculate(y) * DriveConstants.kTeleDriveMaxSpeedMetersPerSecond;
-        rotation = turningLimiter.calculate(rotation)
-                * DriveConstants.kTeleDriveMaxAngularSpeedRadiansPerSecond;
+        rotation = turningLimiter.calculate(rotation) * DriveConstants.kTeleDriveMaxSpeedMetersPerSecond;
 
-
+        System.out.println("X: " + x + " Y: " + y + " Rotation: " + rotation);
+        
         swerve.drive(x, y, rotation);
     }
 
     @Override
     public void end(boolean interrupted) {
+        System.out.println("SwerveDriveCommand.end");
         swerve.stopModules();
     }
 

@@ -1,8 +1,11 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
+import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructArrayPublisher;
@@ -71,6 +74,8 @@ public class SwerveSubsystem extends SubsystemBase {
 
     private final AHRS gyro = new AHRS(NavXComType.kMXP_SPI);
 
+    private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(DriveConstants.kDriveKinematics, getRotation2d(), new SwerveModulePosition[]{fl_module.getPosition(), fr_module.getPosition(), bl_module.getPosition(), br_module.getPosition()});
+
     private SwerveModuleState[] desiredStates = {};
 
     public void setChassisSpeeds(ChassisSpeeds desiredSpeed) {
@@ -100,6 +105,14 @@ public class SwerveSubsystem extends SubsystemBase {
         setChassisSpeeds(desiredSpeeds);
     }
 
+    public Pose2d getPose() {
+        return odometry.getPoseMeters();
+    }
+
+    public void resetOdometry(Pose2d pose) {
+        odometry.resetPose(pose);
+    }
+
     @Override
     public void periodic() {
         fl_module.periodic();
@@ -116,6 +129,7 @@ public class SwerveSubsystem extends SubsystemBase {
             // loggingStates = desiredStates;
         }
         
+        odometry.update(getRotation2d(), new SwerveModulePosition[]{fl_module.getPosition(), fr_module.getPosition(), bl_module.getPosition(), br_module.getPosition()});
         
         publisher.set(loggingStates);
     }

@@ -7,23 +7,18 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructArrayPublisher;
 import edu.wpi.first.util.sendable.SendableBuilder;
-import edu.wpi.first.wpilibj.Preferences;
-import edu.wpi.first.wpilibj.RobotState;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Robot;
 import frc.robot.Constants.DriveConstants;
-
-import static frc.robot.Constants.RobotConstants.*;
 
 import com.studica.frc.AHRS;
 import com.studica.frc.AHRS.NavXComType;
 
 
 public class SwerveSubsystem extends SubsystemBase {
-    public SwerveSubsystem(CommandXboxController controller) {
+    public SwerveSubsystem() {
         System.out.println("Swerve Subsystem initialized");
         new Thread(() -> {
             try {

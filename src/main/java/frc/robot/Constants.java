@@ -22,6 +22,7 @@ public final class Constants
     public static class OperatorConstants
     {
         public static final int DRIVER_CONTROLLER_PORT = 0;
+        public static final int OPERATOR_CONTROLLER_PORT = 1;
 
         public static final double kDeadband = 0.07;
     }
@@ -119,5 +120,16 @@ public final class Constants
 
         public static final int kArmLeftMotorPort = 17;
         public static final int kArmRightMotorPort = 16;
+
+        public static final int kArmLeftShooterPort = 14;
+        public static final int kArmRightShooterPort = 15;
+        
+        public static final int kArmLeftIntakePort = 18;
+        public static final int kArmRightIntakePort = 19;
+
+        public static final int kShooterBeamBreakPort = 20;
+
+        public static final double kArmShooterSpeed = 0.5;
+        public static final double kArmIntakeSpeed = 0.5;
     }
 }

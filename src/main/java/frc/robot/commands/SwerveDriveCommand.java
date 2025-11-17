@@ -48,7 +48,7 @@ public class SwerveDriveCommand extends Command {
         y = yLimiter.calculate(y) * DriveConstants.kTeleDriveMaxSpeedMetersPerSecond;
         rotation = turningLimiter.calculate(rotation) * DriveConstants.kTeleDriveMaxSpeedMetersPerSecond;
 
-        System.out.println("X: " + x + " Y: " + y + " Rotation: " + rotation);
+        //System.out.println("X: " + x + " Y: " + y + " Rotation: " + rotation);
         
         swerve.drive(x, y, rotation);
     }

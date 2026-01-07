@@ -33,14 +33,13 @@ public final class Constants
         public static final double chassisWidth = Units.inchesToMeters(21.25);
         public static final double kMetersPerSec = Units.feetToMeters(20);
         public static final double kRadiansPerSec = Units.rotationsToRadians(2);
-        public static final double wheelDiameter = Units.inchesToMeters(3);
     }
 
     public static final class ModuleConstants {
         public static final double kWheelDiameterMeters = Units.inchesToMeters(4);
-        public static final double kDriveMotorGearRatio = 1 / 8.16;
+        public static final double kDriveMotorGearRatio = 300 / 49;
         public static final double kTurningMotorGearRatio = 1 / 12.8;
-        public static final double kDriveEncoderRot2Meter = kDriveMotorGearRatio * 180 * kWheelDiameterMeters;
+        public static final double kDriveEncoderRot2Meter = (Math.PI * kWheelDiameterMeters) / kDriveMotorGearRatio;
         public static final double kTurningEncoderRot2Rad = kTurningMotorGearRatio * 2 * 180;
         public static final double kDriveEncoderRPM2MeterPerSec = kDriveEncoderRot2Meter / 60;
         public static final double kTurningEncoderRPM2RadPerSec = kTurningEncoderRot2Rad / 60;
@@ -50,9 +49,9 @@ public final class Constants
 
     public static final class DriveConstants {
 
-        public static final double kTrackWidth = Units.inchesToMeters(21);
+        public static final double kTrackWidth = Units.inchesToMeters(21.25);
         // Distance between right and left wheels
-        public static final double kWheelBase = Units.inchesToMeters(25.5);
+        public static final double kWheelBase = Units.inchesToMeters(20);
         // Distance between front and back wheels
         public static final SwerveDriveKinematics kDriveKinematics = new SwerveDriveKinematics(
                 new Translation2d(kWheelBase / 2, -kTrackWidth / 2),
@@ -127,9 +126,9 @@ public final class Constants
         public static final int kArmLeftIntakePort = 18;
         public static final int kArmRightIntakePort = 19;
 
-        public static final int kShooterBeamBreakPort = 20;
+        public static final int kShooterBeamBreakPort = 0;
 
-        public static final double kArmShooterSpeed = 0.5;
-        public static final double kArmIntakeSpeed = 0.5;
+        public static final double kArmShooterSpeed = 1;
+        public static final double kArmIntakeSpeed = 1;
     }
 }

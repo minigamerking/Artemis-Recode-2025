@@ -12,11 +12,17 @@ import frc.robot.subsystems.Arm;
 import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Shooter;
 import frc.robot.subsystems.SwerveSubsystem;
+
+import java.util.function.BooleanSupplier;
+
+import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.WaitCommand;
+import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 
 
 
@@ -52,7 +58,11 @@ public class RobotContainer
         ArmConstants.kArmLeftShooterPort, 
         ArmConstants.kArmRightShooterPort);
 
-    private final RobotContainer.Commands commands = new Commands();
+    public final RobotContainer.AdvancedCommands commands = new AdvancedCommands();
+
+    public final Autons autons;
+
+    public final Field2d field;
     
     /** The container for the robot. Contains subsystems, OI devices, and commands. */
     public RobotContainer()
@@ -63,21 +73,22 @@ public class RobotContainer
         //     () -> -driverController.getLeftX()
         // ));
 
+        this.field = new Field2d();
+
         swerve.setDefaultCommand(new SwerveDriveCommand(swerve,
-                () -> -driverController.getLeftY(),
-                () -> driverController.getLeftX(),
-                () -> driverController.getRightX())
+                () -> driverController.getLeftY(),
+                () -> -driverController.getLeftX(),
+                () -> -driverController.getRightX())
         );
         // Configure the trigger bindings
         configureBindings();
 
-        SmartDashboard.putData("Reset Swerve Headings", swerve.resetSwerveHeadings());
-        SmartDashboard.putData("Swerve PID", swerve);
-        SmartDashboard.putData("Arm", arm);
-    }
+        this.autons = new Autons(swerve, intake, this);
 
-    public void periodic() {
-        SmartDashboard.putBoolean("Beambreak", this.intake.getBeamBreak());
+        SmartDashboard.putData("Shooter", shooter);
+        SmartDashboard.putData("Calibrate Arm", arm.commands.calibrateArm());
+        SmartDashboard.putData("Intake", intake);
+        SmartDashboard.putData("Swerve", swerve);
     }
     
     
@@ -96,23 +107,80 @@ public class RobotContainer
 
         driverController.y().onTrue(arm.commands.calibrateArm());
 
-        //operatorController.x().whileTrue(arm.commands.shoot());
+        operatorController.x().whileTrue(this.commands.shoot());
 
-        driverController.leftTrigger().whileTrue(commands.intakeUntilReady());
+        driverController.rightTrigger().whileTrue(this.commands.intakeUntilReady().alongWith(this.swerve.setSpeedMultiplier(0.3)));
+        driverController.leftTrigger().whileTrue(this.commands.outtake());
+        
+        driverController.rightBumper().onTrue(this.swerve.setSpeedMultiplier(0.5)).onFalse(this.swerve.setSpeedMultiplier(1));
+
+        driverController.start().onTrue(this.swerve.resetHeading());
+
+        operatorController.back().and(operatorController.a()).onTrue(swerve.sysIdQuasistatic(Direction.kForward));
+        operatorController.back().and(operatorController.b()).onTrue(swerve.sysIdQuasistatic(Direction.kReverse));
+        operatorController.back().and(operatorController.x()).onTrue(swerve.sysIdDynamic(Direction.kForward));
+        operatorController.back().and(operatorController.y()).onTrue(swerve.sysIdDynamic(Direction.kReverse));
     }
 
     public void stop() {
         this.shooter.stop();
         this.intake.stop();
+        this.arm.stop();
     }
 
-    public class Commands {
+    public class AdvancedCommands {
+        public Command prepareToShoot(double angle) {
+            Arm.Commands arm = RobotContainer.this.arm.commands;
+            Shooter.Commands shooter = RobotContainer.this.shooter.commands;
+
+            return arm.goToRestingAngle(angle)
+                .alongWith(shooter.spinUp(1, 0.05));
+        }
+
         public Command intakeUntilReady() {
-            return RobotContainer.this.intake.commands.intake().until(RobotContainer.this.intake::getBeamBreak);
+            return RobotContainer.this.intake.commands.featherIntake()
+                .until(RobotContainer.this.intake::getBeamBreak)
+                .andThen(correctNotePosition())
+                .handleInterrupt(() -> RobotContainer.this.swerve.setSpeed(1));
+        }
+
+        public Command correctNotePosition() {
+            Intake.Commands intake = RobotContainer.this.intake.commands;
+            Shooter.Commands shooter = RobotContainer.this.shooter.commands;
+            BooleanSupplier BeamBreakSensorNotBroken = () ->
+                                                            !RobotContainer.this.intake.laserCan.get();
+            
+            Command firstCorrect = intake.outtake(0.5)
+                .alongWith(shooter.shoot(-0.5))
+                .until(BeamBreakSensorNotBroken);
+            
+            Command secondCorrect = intake.intake(0.25)
+                .until(RobotContainer.this.intake::getBeamBreak);
+            
+            Command lastCorrect = intake.outtake(0.1)
+                .until(BeamBreakSensorNotBroken);
+
+            Command correct = firstCorrect
+                .andThen(secondCorrect)
+                .andThen(lastCorrect);
+
+            return correct
+                .unless(BeamBreakSensorNotBroken);
         }
 
         public Command shoot() {
-            return RobotContainer.this.shooter.commands.spinUp().andThen(RobotContainer.this.intake.commands.intake()).handleInterrupt(RobotContainer.this::stop);
+            return this.prepareToShoot(55)
+                        .withTimeout(1)
+                        .andThen(new WaitCommand(0.5))
+                        .andThen(RobotContainer.this.intake.commands.intake())
+                        .finallyDo(() -> {
+                            RobotContainer.this.shooter.stop();
+                            RobotContainer.this.arm.setRestingAngle(0);
+                        });
+        }
+
+        public Command outtake() {
+            return RobotContainer.this.shooter.commands.shoot(-0.5).alongWith(RobotContainer.this.intake.commands.outtake());
         }
     }
 }

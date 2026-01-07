@@ -1,7 +1,9 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
@@ -10,27 +12,26 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructArrayPublisher;
 import edu.wpi.first.util.sendable.SendableBuilder;
+import edu.wpi.first.wpilibj.smartdashboard.Field2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
+import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.Robot;
 import frc.robot.Constants.DriveConstants;
+import frc.robot.util.FunctionUtilities;
+
+import static edu.wpi.first.units.Units.Volts;
 
 import com.studica.frc.AHRS;
 import com.studica.frc.AHRS.NavXComType;
 
+import choreo.trajectory.SwerveSample;
+
 
 public class SwerveSubsystem extends SubsystemBase {
-    public SwerveSubsystem() {
-        System.out.println("Swerve Subsystem initialized");
-        new Thread(() -> {
-            try {
-                Thread.sleep(1000);
-                resetHeading();
-            } catch (Exception e) {
-            }
-        }).start();
-    }
 
     public final SwerveModule fl_module = new SwerveModule(
         DriveConstants.kFrontLeftDriveMotorPort,
@@ -38,7 +39,6 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kFrontLeftDriveEncoderReversed,
         DriveConstants.kFrontLeftTurningEncoderReversed,
         DriveConstants.kFrontLeftDriveAbsoluteEncoderPort,
-        DriveConstants.kFrontLeftDriveAbsoluteEncoderOffset,
         DriveConstants.kFrontLeftDriveAbsoluteEncoderReversed,
         0);
 
@@ -48,7 +48,6 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kFrontRightDriveEncoderReversed,
         DriveConstants.kFrontRightTurningEncoderReversed,
         DriveConstants.kFrontRightDriveAbsoluteEncoderPort,
-        DriveConstants.kFrontRightDriveAbsoluteEncoderOffset,
         DriveConstants.kFrontRightDriveAbsoluteEncoderReversed,
         1);
 
@@ -58,7 +57,6 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kBackLeftDriveEncoderReversed,
         DriveConstants.kBackLeftTurningEncoderReversed,
         DriveConstants.kBackLeftDriveAbsoluteEncoderPort,
-        DriveConstants.kBackLeftDriveAbsoluteEncoderOffset,
         DriveConstants.kBackLeftDriveAbsoluteEncoderReversed,
         2);
 
@@ -68,18 +66,75 @@ public class SwerveSubsystem extends SubsystemBase {
         DriveConstants.kBackRightDriveEncoderReversed,
         DriveConstants.kBackRightTurningEncoderReversed,
         DriveConstants.kBackRightDriveAbsoluteEncoderPort,
-        DriveConstants.kBackRightDriveAbsoluteEncoderOffset,
         DriveConstants.kBackRightDriveAbsoluteEncoderReversed,
         3);
 
     private final AHRS gyro = new AHRS(NavXComType.kMXP_SPI);
 
-    private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(DriveConstants.kDriveKinematics, getRotation2d(), new SwerveModulePosition[]{fl_module.getPosition(), fr_module.getPosition(), bl_module.getPosition(), br_module.getPosition()});
+    private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(DriveConstants.kDriveKinematics,
+                                                                            getRotation2d(), 
+                                                                            getPositions());
 
     private SwerveModuleState[] desiredStates = {};
 
-    public void setChassisSpeeds(ChassisSpeeds desiredSpeed) {
-        SwerveModuleState[] newStates = DriveConstants.kDriveKinematics.toSwerveModuleStates(desiredSpeed);
+    private double speedMultiplier = 1;
+
+    private double maxSpeedMultiplier = 1;
+
+    private PIDController xController = new PIDController(1, 0, 0);
+    private PIDController yController = new PIDController(1, 0, 0);
+    private PIDController headingController = new PIDController(3.5, 0, 0);
+
+    private SysIdRoutine sysIdRoutine = new SysIdRoutine(
+        new SysIdRoutine.Config(),
+        new SysIdRoutine.Mechanism(
+            (voltage) -> {this.runVolts(voltage.in(Volts));}, 
+            null, 
+            this
+        )
+    );
+
+    private final Field2d field;
+
+    public SwerveSubsystem() {
+        System.out.println("Swerve Subsystem initialized");
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+                resetGyro();
+                resetOdometry(new Pose2d(new Translation2d(), getRotation2d()));
+            } catch (Exception e) {
+            }
+        }).start();
+
+        headingController.enableContinuousInput(-Math.PI, Math.PI);
+        this.field = new Field2d();
+
+        SmartDashboard.putData("Field", field);
+    }
+
+    public void followTrajectory(SwerveSample sample) {
+        System.out.println("Following Trajectory...");
+        Pose2d pose = getPose();
+
+        // Generate the next speeds for the robot
+        ChassisSpeeds speeds = new ChassisSpeeds(
+            sample.vx + xController.calculate(pose.getX(), sample.x),
+            sample.vy + yController.calculate(pose.getY(), sample.y),
+            sample.omega + headingController.calculate(pose.getRotation().getRadians(), sample.heading)
+        );
+
+        // Apply the generated speeds
+        setChassisSpeeds(speeds, false);
+    }
+
+    public void setChassisSpeeds(ChassisSpeeds desiredSpeed, boolean fieldRelative) {
+        System.out.println(fieldRelative);
+        //ChassisSpeeds speeds = (fieldRelative) ? ChassisSpeeds.fromFieldRelativeSpeeds(desiredSpeed, getRotation2d()) : desiredSpeed;
+        ChassisSpeeds speeds = ChassisSpeeds.fromFieldRelativeSpeeds(desiredSpeed, getRotation2d());
+
+
+        SwerveModuleState[] newStates = DriveConstants.kDriveKinematics.toSwerveModuleStates(speeds);
 
         SwerveDriveKinematics.desaturateWheelSpeeds(newStates, DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
 
@@ -91,18 +146,24 @@ public class SwerveSubsystem extends SubsystemBase {
         this.desiredStates = newStates;
     }
 
+    private void runVolts(double volts) {
+        fl_module.runVolts(volts/2);
+        fr_module.runVolts(-volts/2);
+        bl_module.runVolts(volts/2);
+        br_module.runVolts(-volts/2);
+    }
+
     StructArrayPublisher<SwerveModuleState> publisher = NetworkTableInstance.getDefault()
 .getStructArrayTopic("Swerve Module States", SwerveModuleState.struct).publish();
 
     public void drive(double xSpeed, double ySpeed, double rot) {
-        ChassisSpeeds desiredSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(
+        ChassisSpeeds desiredSpeeds = new ChassisSpeeds(
             xSpeed,
             ySpeed,
-            rot,
-            getRotation2d()
+            rot
         );
 
-        setChassisSpeeds(desiredSpeeds);
+        setChassisSpeeds(desiredSpeeds.times(this.speedMultiplier), true);
     }
 
     public Pose2d getPose() {
@@ -110,7 +171,26 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     public void resetOdometry(Pose2d pose) {
-        odometry.resetPose(pose);
+        odometry.resetPosition(getRotation2d(), getPositions(), pose);
+    }
+
+    private SwerveModulePosition[] getPositions() {
+        SwerveModulePosition[] positions = new SwerveModulePosition[4];
+
+        positions[0] = fl_module.getPosition();
+        positions[1] = fr_module.getPosition();
+        positions[2] = bl_module.getPosition();
+        positions[3] = br_module.getPosition();
+
+        return positions;
+    }
+
+    public void setSpeed(double mult) {
+
+        this.speedMultiplier = FunctionUtilities.applyClamp(
+            mult, 
+            0, 
+            this.maxSpeedMultiplier);
     }
 
     @Override
@@ -119,6 +199,10 @@ public class SwerveSubsystem extends SubsystemBase {
         fr_module.periodic();
         bl_module.periodic();
         br_module.periodic();
+
+        odometry.update(getRotation2d(), getPositions());
+
+        this.field.setRobotPose(getPose());
 
         SwerveModuleState[] loggingStates = null;
 
@@ -129,21 +213,13 @@ public class SwerveSubsystem extends SubsystemBase {
             // loggingStates = desiredStates;
         }
         
-        odometry.update(getRotation2d(), new SwerveModulePosition[]{fl_module.getPosition(), fr_module.getPosition(), bl_module.getPosition(), br_module.getPosition()});
+        
         
         publisher.set(loggingStates);
     }
     
     @Override
     public void initSendable(SendableBuilder builder) {
-        builder.addDoubleProperty(
-            "PID P", 
-            () -> fl_module.getController().getP(),
-            (double p) -> this.setP(p));
-        builder.addDoubleProperty(
-            "PID D", 
-            () -> fl_module.getController().getD(),
-            (double d) -> this.setD(d));
         builder.addDoubleProperty("FL Module Setpoint", 
             () -> fl_module.getController().getSetpoint(),
             null);
@@ -156,13 +232,22 @@ public class SwerveSubsystem extends SubsystemBase {
         builder.addDoubleProperty("BR Module Setpoint", 
             () -> br_module.getController().getSetpoint(),
             null);
-        builder.addDoubleProperty("FL Module Heading",
-            () -> fl_module.getAbsoluteEncoderDeg(),
-             null);
+        builder.addBooleanProperty("New Driver Mode", 
+            () -> this.maxSpeedMultiplier < 1 ? true : false,
+            (boolean mult) -> this.setMaxSpeed(mult ? 0.5 : 1));
+        builder.addDoubleProperty("Gyro", 
+            () -> getRotation2d().getDegrees(),
+            null);
     }
 
     public Rotation2d getRotation2d() {
-        return Rotation2d.fromDegrees(-gyro.getRotation2d().getDegrees());
+        return Rotation2d.fromDegrees(gyro.getRotation2d().getDegrees());
+    }
+
+    private void setMaxSpeed(double mult) {
+        System.out.println(mult);
+        this.maxSpeedMultiplier = mult;
+        this.setSpeed(mult);
     }
 
     public void setP(double p) {
@@ -186,7 +271,7 @@ public class SwerveSubsystem extends SubsystemBase {
         br_module.stop();
     }
 
-    public void resetHeading() {
+    public void resetGyro() {
         gyro.reset();
     }
 
@@ -206,5 +291,21 @@ public class SwerveSubsystem extends SubsystemBase {
             bl_module.getAbsoluteEncoderDeg();
             br_module.getAbsoluteEncoderDeg();
         }).ignoringDisable(true);
+    }
+
+    public Command resetHeading() {
+        return Commands.runOnce(this::resetGyro);
+    }
+
+    public Command setSpeedMultiplier(double mult) {
+        return Commands.runOnce(() -> this.setSpeed(mult));
+    }
+
+    public Command sysIdQuasistatic(Direction direction) {
+        return sysIdRoutine.quasistatic(direction);
+    }
+
+    public Command sysIdDynamic(Direction direction) {
+        return sysIdRoutine.dynamic(direction);
     }
 }

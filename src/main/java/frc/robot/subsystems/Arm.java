@@ -6,20 +6,15 @@ import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 
-import edu.wpi.first.math.controller.ArmFeedforward;
 import edu.wpi.first.math.controller.PIDController;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.WaitCommand;
 import frc.robot.Constants.ArmConstants;
 import frc.robot.util.FunctionUtilities;
 
 public class Arm extends SubsystemBase{
-
-    private final ArmFeedforward feedForward;
 
     private final SparkMax leftMotor;
 
@@ -36,11 +31,6 @@ public class Arm extends SubsystemBase{
     private PIDController armAnglePIDController;
 
     public Arm(int leftMotorID, int rightMotorID) {
-        feedForward = new ArmFeedforward(
-            1.575,
-            2.8396,
-            0
-        );
 
         commands = new Commands();
 
@@ -119,16 +109,14 @@ public class Arm extends SubsystemBase{
     }
 
     public double getEncoderPositionSum() {
-        double leftPosition = this.leftAbsoluteEncoder.getPosition() - Preferences.getDouble("Left_Encoder_Zero", 0);
-        double rightPosition = this.rightAbsoluteEncoder.getPosition() - Preferences.getDouble("Right_Encoder_Zero", 0);
+        double leftPosition = (this.leftAbsoluteEncoder.getPosition() - Preferences.getDouble("Left_Encoder_Zero", 0));
+        double rightPosition = (this.rightAbsoluteEncoder.getPosition() - Preferences.getDouble("Right_Encoder_Zero", 0));
 
         return leftPosition + rightPosition;
     }
 
     public double getAngle() {
-        return Rotation2d.fromRotations(
-            getEncoderPositionSum() / 2
-        ).getDegrees();
+        return getEncoderPositionSum();
     }
 
     public void stop() {
@@ -142,6 +130,8 @@ public class Arm extends SubsystemBase{
             ArmConstants.kArmMinAngleDegrees,
             ArmConstants.kArmMaxAngleDegrees
         );
+
+        this.rotateToAngle(this.restingAngle);
     }
 
     @Override
@@ -156,13 +146,13 @@ public class Arm extends SubsystemBase{
 
         double effectiveOutput = wouldOverrun ? 0 : output;
 
-        //this.leftMotor.setVoltage(effectiveOutput);
-        //this.rightMotor.setVoltage(effectiveOutput);
+        this.leftMotor.setVoltage(effectiveOutput);
+        this.rightMotor.setVoltage(effectiveOutput);
     }
 
     public void rotateToAngle(double angle) {
         double clampedAngle = FunctionUtilities.applyClamp(
-            this.getAngle(), 
+            angle, 
             ArmConstants.kArmMinAngleDegrees, 
             ArmConstants.kArmMaxAngleDegrees);
 
@@ -191,6 +181,15 @@ public class Arm extends SubsystemBase{
                 () -> {Arm.this.rotateToAngle(Arm.this.restingAngle);},
                 () -> {}
                 ).handleInterrupt(Arm.this::stop);
+        }
+
+        public Command goToRestingAngle() {
+            return this.holdAtRestingAngle()
+                .until(Arm.this::isAtSetpoint);
+        }
+
+        public Command goToRestingAngle(double angle) {
+            return Arm.this.runOnce(() -> Arm.this.setRestingAngle(angle)).andThen(this.goToRestingAngle());
         }
 
         public Command calibrateArm() {

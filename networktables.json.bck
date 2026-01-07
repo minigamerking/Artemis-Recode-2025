@@ -2,7 +2,7 @@
   {
     "name": "/SmartDashboard/0 Angle",
     "type": "double",
-    "value": 3.738218260890248e-06,
+    "value": 0.0,
     "properties": {
       "persistent": true
     }

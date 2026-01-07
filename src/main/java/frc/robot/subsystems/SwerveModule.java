@@ -12,7 +12,6 @@ import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.Constants.DriveConstants;
@@ -31,16 +30,14 @@ public class SwerveModule {
 
     private final CANcoder absoluteEncoder;
     private final boolean absoluteEncoderReversed;
-    private final double absoluteEncoderOffsetRad;
 
     private SwerveModuleState state;
 
     private final int swerveID;
 
     public SwerveModule(int driveMotorId, int turningMotorId, boolean driveMotorReversed, boolean turningMotorReversed,
-            int absoluteEncoderId, double absoluteEncoderOffset, boolean absoluteEncoderReversed, int swerveID) {
+            int absoluteEncoderId, boolean absoluteEncoderReversed, int swerveID) {
 
-        this.absoluteEncoderOffsetRad = absoluteEncoderOffset;
         this.absoluteEncoderReversed = absoluteEncoderReversed;
         absoluteEncoder = new CANcoder(absoluteEncoderId);
 
@@ -72,7 +69,13 @@ public class SwerveModule {
         SparkMaxConfig config = new SparkMaxConfig();
 
         config.encoder
-            .velocityConversionFactor(ModuleConstants.kDriveEncoderRPM2MeterPerSec);
+            .velocityConversionFactor(ModuleConstants.kDriveEncoderRPM2MeterPerSec)
+            .positionConversionFactor(ModuleConstants.kDriveEncoderRot2Meter);
+        
+        config.signals
+            .analogVelocityAlwaysOn(true)
+            .analogVoltageAlwaysOn(true)
+            .analogPositionAlwaysOn(true);
 
         config.inverted(reversed);
 
@@ -86,6 +89,11 @@ public class SwerveModule {
             .positionConversionFactor(360);
 
         config.inverted(reversed);
+
+        config.signals
+            .analogVelocityAlwaysOn(true)
+            .analogVoltageAlwaysOn(true)
+            .analogPositionAlwaysOn(true);
 
         return config;
     }
@@ -107,11 +115,14 @@ public class SwerveModule {
     }
 
     public double getAbsoluteEncoderDeg() {
-        double angle = Rotation2d.fromRotations(absoluteEncoder.getAbsolutePosition().getValueAsDouble()).getDegrees();
-        if (absoluteEncoderReversed) angle *= -1.0;
-        // angle -= Preferences.getDouble("Module_" + swerveID + "_Angle", 0);
-    
-        return FunctionUtilities.normalizeToRange(angle, -180, 180);
+        double rotations = absoluteEncoder.getAbsolutePosition().getValueAsDouble();
+        Rotation2d angle = Rotation2d.fromRotations(rotations);
+
+        if (absoluteEncoderReversed) {
+            angle = angle.unaryMinus();
+        }
+
+        return angle.getDegrees();
     }
 
     public void resetEncoders() {
@@ -129,6 +140,10 @@ public class SwerveModule {
         return new SwerveModuleState(getDriveVelocity(), Rotation2d.fromDegrees(getAbsoluteEncoderDeg()));
     }
 
+    public void runVolts(double volts) {
+        this.driveMotor.setVoltage(volts);
+    }
+
     public void periodic() {
         //System.out.println(this.swerveID + " Desired Angle: " + this.state.angle.getDegrees());
         driveMotor.set(this.state.speedMetersPerSecond / DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
@@ -137,7 +152,7 @@ public class SwerveModule {
     }
 
     public void setDesiredState(SwerveModuleState desiredState) {
-        if (Math.abs(desiredState.speedMetersPerSecond) < 0.001) {
+        if (Math.abs(desiredState.speedMetersPerSecond) < 0.01) {
             desiredState.speedMetersPerSecond = 0;
         }
         desiredState.optimize(Rotation2d.fromDegrees(getAbsoluteEncoderDeg()));
@@ -146,7 +161,8 @@ public class SwerveModule {
     }
 
     public SwerveModulePosition getPosition() {
-        return new SwerveModulePosition(driveEncoder.getPosition(), Rotation2d.fromDegrees(getAbsoluteEncoderDeg()));
+        SwerveModulePosition position = new SwerveModulePosition(getDrivePosition(), Rotation2d.fromDegrees(getAbsoluteEncoderDeg()));
+        return position;
     }
 
     public void stop() {

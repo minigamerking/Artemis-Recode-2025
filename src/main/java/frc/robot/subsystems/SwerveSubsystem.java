@@ -94,6 +94,9 @@ public class SwerveSubsystem extends SubsystemBase {
         )
     );
 
+    StructArrayPublisher<SwerveModuleState> publisher = NetworkTableInstance.getDefault()
+        .getStructArrayTopic("Swerve Module States", SwerveModuleState.struct).publish();
+
     private final Field2d field;
 
     public SwerveSubsystem() {
@@ -130,8 +133,8 @@ public class SwerveSubsystem extends SubsystemBase {
 
     public void setChassisSpeeds(ChassisSpeeds desiredSpeed, boolean fieldRelative) {
         System.out.println(fieldRelative);
-        //ChassisSpeeds speeds = (fieldRelative) ? ChassisSpeeds.fromFieldRelativeSpeeds(desiredSpeed, getRotation2d()) : desiredSpeed;
-        ChassisSpeeds speeds = ChassisSpeeds.fromFieldRelativeSpeeds(desiredSpeed, getRotation2d());
+        ChassisSpeeds speeds = (fieldRelative) ? ChassisSpeeds.fromFieldRelativeSpeeds(desiredSpeed, getRotation2d()) : desiredSpeed;
+        //ChassisSpeeds speeds = ChassisSpeeds.fromFieldRelativeSpeeds(desiredSpeed, getRotation2d());
 
 
         SwerveModuleState[] newStates = DriveConstants.kDriveKinematics.toSwerveModuleStates(speeds);
@@ -152,9 +155,6 @@ public class SwerveSubsystem extends SubsystemBase {
         bl_module.runVolts(volts/2);
         br_module.runVolts(-volts/2);
     }
-
-    StructArrayPublisher<SwerveModuleState> publisher = NetworkTableInstance.getDefault()
-.getStructArrayTopic("Swerve Module States", SwerveModuleState.struct).publish();
 
     public void drive(double xSpeed, double ySpeed, double rot) {
         ChassisSpeeds desiredSpeeds = new ChassisSpeeds(
